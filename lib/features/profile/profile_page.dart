@@ -578,11 +578,13 @@ class _ProfilePageState extends State<ProfilePage> {
                             style: OutlinedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(vertical: 13),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10)),
+                                borderRadius: BorderRadius.circular(10)
+                              ),
                               side: BorderSide(color: Colors.grey.shade300),
                             ),
                             child: const Text('Batal',
-                              style: TextStyle(color: Colors.grey)),
+                              style: TextStyle(color: Colors.grey)
+                            ),
                           ),
                         ),
                         const SizedBox(width: 12),
