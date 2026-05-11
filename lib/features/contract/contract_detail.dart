@@ -6,8 +6,8 @@ import 'package:intl/intl.dart';
 import '../../data/providers/contract_provider.dart';
 import '../../core/utils/currency_formatter.dart';
 import '../../core/constants/app_colors.dart';
-import '../../shared/widgets/document_list.dart';
-import '../../shared/widgets/log_list.dart';
+import 'widgets/document_list.dart';
+import 'widgets/log_list.dart';
 
 class ContractDetailPage extends StatefulWidget {
   final Map<String, String> contractData;

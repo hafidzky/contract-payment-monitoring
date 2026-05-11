@@ -7,7 +7,7 @@ import 'package:path/path.dart' as p;
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/contract_document.dart';
 import 'add_contract_step3.dart';
-import '../../../shared/widgets/step_indicator.dart';
+import '../widgets/step_indicator.dart';
 
 class AddContractDetailPage extends StatefulWidget {
   final String vendorName;

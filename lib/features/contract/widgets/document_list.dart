@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:open_file/open_file.dart';
 import 'package:file_picker/file_picker.dart';
-import '../../data/providers/contract_provider.dart';
-import '../../data/models/contract_document.dart';
-import '../../core/constants/app_colors.dart';
+import '../../../data/providers/contract_provider.dart';
+import '../../../data/models/contract_document.dart';
+import '../../../core/constants/app_colors.dart';
 
 class DocumentListWidget extends StatelessWidget {
   final String contractId;

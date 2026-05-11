@@ -3,9 +3,9 @@ import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/contract_helper.dart';
 import '../../data/providers/contract_provider.dart';
-import 'widgets/contract_card.dart';
-import 'widgets/contract_filter.dart';
-import 'widgets/contract_empty.dart';
+import 'widgets/contract_list_card.dart';
+import 'widgets/contract_list_filter.dart';
+import 'widgets/contract_list_empty.dart';
 
 class ContractListPage extends StatefulWidget {
   const ContractListPage({super.key});
@@ -146,7 +146,7 @@ class _ContractListPageState extends State<ContractListPage> {
             onPressed: () => Navigator.pushNamed(context, '/add-contract'),
             child: const Icon(Icons.add, color: Colors.white),
         ),
-        
+
       body: Consumer<ContractProvider>(
         builder: (context, provider, _) {
           final filtered = _applyFilter(provider.allContracts);

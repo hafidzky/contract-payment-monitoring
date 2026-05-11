@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '/../core/constants/app_colors.dart';
 import '/../data/providers/vendor_provider.dart';
 import 'add_contract_step2.dart';
-import '/../shared/widgets/step_indicator.dart';
+import '../widgets/step_indicator.dart';
 
 class AddContractPage extends StatefulWidget {
   const AddContractPage({super.key});

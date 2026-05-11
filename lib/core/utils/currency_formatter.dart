@@ -47,4 +47,29 @@ class CurrencyFormatter {
       return "Rp ${num.toStringAsFixed(0)}";
     }
   }
+
+  static double parseToDouble(dynamic value) {
+    if (value == null) return 0;
+    
+    String clean = value.toString()
+        .toLowerCase()
+        .replaceAll('rp', '')
+        .replaceAll('idr', '')
+        .replaceAll(' ', '')
+        .trim();
+
+    // Handle unit juta/miliar
+    if (clean.contains('juta')) {
+      String digits = clean.replaceAll('juta', '').replaceAll('.', '').trim();
+      return (double.tryParse(digits) ?? 0) * 1000000;
+    }
+    if (clean.contains('miliar') || clean.endsWith('m')) {
+      String digits = clean.replaceAll('miliar', '').replaceAll('m', '').replaceAll('.', '').trim();
+      return (double.tryParse(digits) ?? 0) * 1000000000;
+    }
+
+    // Normal: hapus titik ribuan, parse langsung
+    String digits = clean.replaceAll('.', '').replaceAll(',', '').trim();
+    return double.tryParse(digits) ?? 0;
+  }
 }

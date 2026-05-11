@@ -1,17 +1,15 @@
-// Lokasi: lib/pages/contract/widgets/log_list_widget.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../data/providers/contract_provider.dart';
-import '../../core/constants/app_colors.dart';
+import '../../../data/providers/contract_provider.dart';
+import '../../../core/constants/app_colors.dart';
 
 class LogListWidget extends StatelessWidget {
-  final String contractId; // Butuh ID untuk mencari data di provider
+  final String contractId; 
 
   const LogListWidget({super.key, required this.contractId});
 
   @override
   Widget build(BuildContext context) {
-    // Membaca data langsung dari provider berdasarkan contractId
     final logs = context.watch<ContractProvider>().getLogsForContract(contractId);
 
     if (logs.isEmpty) {

@@ -5,7 +5,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../data/models/contract_document.dart';
 import '../../../data/providers/contract_provider.dart';
-import '../../../shared/widgets/step_indicator.dart';
+import '../widgets/step_indicator.dart';
 
 class AddContractReviewPage extends StatelessWidget {
   final String vendorName;

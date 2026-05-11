@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../features/auth/login_page.dart';
 import '../../features/contract/contract_list.dart'; 
-import '../../features/contract/add_contract/add_contract_step1.dart';
+import '../../features/contract/add/add_contract_step1.dart';
 import '../../navigation/main_navigation.dart';
 import '../../features/dashboard/dashboard_page.dart';
 

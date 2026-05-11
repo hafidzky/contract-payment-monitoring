@@ -8,7 +8,7 @@ class ContractEntity extends Equatable {
   final double totalValue;
   final DateTime startDate;
   final DateTime endDate;
-  final List<PaymentEntity> payments; // List termin di dalam kontrak
+  final List<PaymentEntity> payments; 
 
   const ContractEntity({
     required this.id,
