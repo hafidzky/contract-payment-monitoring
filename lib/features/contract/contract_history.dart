@@ -5,7 +5,6 @@ import '../../core/constants/app_colors.dart';
 import '../../data/providers/contract_provider.dart';
 import '../../core/utils/contract_helper.dart';
 import '../../core/utils/currency_formatter.dart';
-import 'dart:convert';
 
 class ContractHistoryPage extends StatefulWidget {
   final String filterStatus;
@@ -23,26 +22,6 @@ class _ContractHistoryPageState extends State<ContractHistoryPage> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
-  }
-
-  // Hitung total termin & terbayar dari termin_data
-  Map<String, int> _getTerminSummary(String? terminData) {
-    int total = 0;
-    int paid = 0;
-    if (terminData == null) return {'total': 0, 'paid': 0};
-    try {
-      final List<dynamic> termins = jsonDecode(terminData);
-      total = termins.length;
-      for (var t in termins) {
-        final rawIsPaid = t['is_paid'];
-        final isPaid = rawIsPaid == true
-            || rawIsPaid == 1
-            || rawIsPaid?.toString().toLowerCase() == 'true'
-            || t['status']?.toString() == 'Terbayar';
-        if (isPaid) paid++;
-      }
-    } catch (_) {}
-    return {'total': total, 'paid': paid};
   }
 
   @override
@@ -134,7 +113,7 @@ class _ContractHistoryPageState extends State<ContractHistoryPage> {
 
   Widget _buildDesktopCard(BuildContext context, Map<String, String> vendor) {
     final statusInfo = _getStatusInfo(vendor);
-    final terminSummary = _getTerminSummary(vendor['termin_data']);
+    final terminSummary = ContractHelper.getTerminSummary(vendor['termin_data']);
     final nilaiKontrak = CurrencyFormatter.toFullRupiah(vendor['nilai']);
 
     return Container(
@@ -238,7 +217,7 @@ class _ContractHistoryPageState extends State<ContractHistoryPage> {
 
   Widget _buildMobileCard(BuildContext context, Map<String, String> vendor) {
     final statusInfo = _getStatusInfo(vendor);
-    final terminSummary = _getTerminSummary(vendor['termin_data']);
+    final terminSummary = ContractHelper.getTerminSummary(vendor['termin_data']);
     final nilaiKontrak = CurrencyFormatter.toFullRupiah(vendor['nilai']);
 
     return Container(

@@ -135,4 +135,25 @@ class ContractHelper {
     } catch (_) {}
     return false;
   }
+
+  static Map<String, int> getTerminSummary(String? terminJson) {
+    int total = 0;
+    int paid = 0;
+    if (terminJson == null || terminJson.isEmpty || terminJson == '[]') {
+      return {'total': 0, 'paid': 0};
+    }
+    try {
+      final List<dynamic> termins = jsonDecode(terminJson);
+      total = termins.length;
+      for (var t in termins) {
+        final rawIsPaid = t['is_paid'];
+        final isPaid = rawIsPaid == true
+            || rawIsPaid == 1
+            || rawIsPaid?.toString().toLowerCase() == 'true'
+            || t['status']?.toString() == 'Terbayar';
+        if (isPaid) paid++;
+      }
+    } catch (_) {}
+    return {'total': total, 'paid': paid};
+  }
 }
