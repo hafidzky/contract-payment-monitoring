@@ -89,8 +89,8 @@ class AdminDashboardPage extends StatelessWidget {
       children: [
         Text(
           isDesktop
-            ? "Vendor Contract & Payment Monitoring"
-            : "Vendor Contract & Payment Monitoring", 
+            ? "SIMOKO"
+            : "SIMOKO",
           style: TextStyle(
             fontSize: titleSize,
             fontWeight: FontWeight.w900,
@@ -100,7 +100,7 @@ class AdminDashboardPage extends StatelessWidget {
         ),
         const SizedBox(height: 2),
         const Text(
-          "SEMANGAT! Pantau kontrak dan pembayaran dengan mudah.",
+          "Sistem Monitoring Kontrak Pembayaran",
           style: TextStyle(
             color: Colors.black54,
             fontWeight: FontWeight.w500,
