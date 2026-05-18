@@ -7,8 +7,22 @@ import '../../core/constants/app_colors.dart';
 import '../../core/utils/currency_formatter.dart';
 import '../../core/utils/contract_helper.dart';
 
-class ContractValuePage extends StatelessWidget {
+class ContractValuePage extends StatefulWidget {
   const ContractValuePage({super.key});
+
+  @override
+  State<ContractValuePage> createState() => _ContractValuePageState();
+}
+
+class _ContractValuePageState extends State<ContractValuePage> {
+  @override
+  void initState() {
+    super.initState();
+    // Insting pertama halaman saat dibuka: Tarik data dari Laravel!
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ContractProvider>().fetchContracts();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
