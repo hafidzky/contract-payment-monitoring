@@ -19,6 +19,14 @@ class _ContractHistoryPageState extends State<ContractHistoryPage> {
   String searchQuery = "";
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ContractProvider>().fetchContracts();
+    });
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
