@@ -98,15 +98,26 @@ class _NotificationPageState extends State<NotificationPage> {
               priority:     3,
               contractData: contract,
             ));
-          } else if (diffDays < 0) {
-            // OVERDUE — melewati jatuh tempo
+      } else if (diffDays < -7) {
+        // OVERDUE — melewati masa peringatan (lebih dari 7 hari)
             alerts.add(_AlertItem(
               type:         'critical',
               title:        '$name — $terminLabel OVERDUE',
               message:      '$terminLabel senilai $amount telah melewati jatuh tempo '
-                  '${diffDays.abs()} hari lalu (${t['date']}). Segera tindaklanjuti!',
+                  'dan terlewat ${diffDays.abs()} hari (${t['date']}). Segera tindaklanjuti!',
               time: _formatDate(t['date']?.toString()),
               priority:     0,
+              contractData: contract,
+            ));
+          } else if (diffDays < 0) {
+            // WARNING — masa peringatan (1 s.d 7 hari setelah termin)
+            alerts.add(_AlertItem(
+              type:         'warning',
+              title:        '$name — Peringatan Pembayaran',
+              message:      '$terminLabel senilai $amount telah melewati jadwal termin '
+                  '(${t['date']}). Tersisa ${7 - diffDays.abs()} hari sebelum status menjadi Overdue.',
+              time: _formatDate(t['date']?.toString()),
+              priority:     1,
               contractData: contract,
             ));
           } else if (diffDays <= 7) {

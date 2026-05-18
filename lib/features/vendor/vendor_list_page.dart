@@ -15,6 +15,16 @@ class _VendorListPageState extends State<VendorListPage> {
   String _searchQuery = '';
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final provider = Provider.of<VendorProvider>(context, listen: false);
+      provider.fetchVendors();
+    });
+  }
+
+  @override
   void dispose() {
     _searchCtrl.dispose();
     super.dispose();
@@ -38,12 +48,17 @@ class _VendorListPageState extends State<VendorListPage> {
           final filtered = provider.vendors.where((v) {
             final q = _searchQuery.toLowerCase();
             return q.isEmpty
-                || v.name.toLowerCase().contains(q)
-                || v.category.toLowerCase().contains(q);
+                || v.name.toLowerCase().contains(q);
           }).toList();
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 80),
+          return RefreshIndicator(
+            color: AppColors.primary,
+            onRefresh: () async {
+              await provider.fetchVendors();
+            },
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 80),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -97,7 +112,7 @@ class _VendorListPageState extends State<VendorListPage> {
                   controller: _searchCtrl,
                   onChanged: (v) => setState(() => _searchQuery = v),
                   decoration: InputDecoration(
-                    hintText: 'Cari nama, ID, atau kategori vendor...',
+                    hintText: 'Cari nama atau ID vendor...',
                     prefixIcon: const Icon(Icons.search, color: Colors.grey),
                     suffixIcon: _searchQuery.isNotEmpty
                         ? IconButton(
@@ -129,6 +144,7 @@ class _VendorListPageState extends State<VendorListPage> {
                     return _buildVendorCard(e.value, index, isDesktop);
                   }),
               ],
+            ),
             ),
           );
         },
@@ -185,14 +201,6 @@ class _VendorListPageState extends State<VendorListPage> {
                       color: AppColors.primary,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    vendor.category,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade500,
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -233,7 +241,7 @@ class _VendorListPageState extends State<VendorListPage> {
                     _showVendorDialog(vendor: vendor, index: index);
                     break;
                   case 'delete':
-                    _showDeleteDialog(vendor, index);
+                    _showDeleteDialog(vendor, vendor.id!);
                     break;
                 }
               },
@@ -249,21 +257,6 @@ class _VendorListPageState extends State<VendorListPage> {
     final isEdit = vendor != null;
     final nameCtrl = TextEditingController(text: vendor?.name ?? '');
     final formKey = GlobalKey<FormState>();
-
-    final List<String> categoryOptions = [
-      'Konstruksi & Sipil',
-      'Pengadaan Alat Berat',
-      'Pengadaan Barang',
-      'Logistik & Transportasi',
-      'Jasa Konsultansi',
-      'Teknologi Informasi',
-      'Pemeliharaan & Perawatan',
-      'Keamanan & Keselamatan',
-    ];
-
-    String selectedCategory = categoryOptions.contains(vendor?.category)
-        ? vendor!.category
-        : categoryOptions.first;
 
     showDialog(
       context: context,
@@ -318,25 +311,6 @@ class _VendorListPageState extends State<VendorListPage> {
                           ? 'Nama wajib diisi'
                           : null,
                     ),
-                    const SizedBox(height: 16),
-
-                    // Kategori
-                    _label('Kategori'),
-                    DropdownButtonFormField<String>(
-                      initialValue: selectedCategory,
-                      decoration: _inputDeco(null, Icons.work_outline),
-                      items: categoryOptions
-                          .map((c) => DropdownMenuItem(
-                                value: c,
-                                child: Text(c),
-                              ))
-                          .toList(),
-                      onChanged: (v) {
-                        if (v != null) {
-                          setDialogState(() => selectedCategory = v);
-                        }
-                      },
-                    ),
                     const SizedBox(height: 24),
 
                     // Actions
@@ -368,14 +342,14 @@ class _VendorListPageState extends State<VendorListPage> {
                                 index,
                                 Vendor(
                                   name:     nameCtrl.text.trim(),
-                                  category: selectedCategory,
+                                  category: vendor.category,
                                 ),
                               );
                             } else {
                               await provider.addVendor(
                                 Vendor(
                                   name:     nameCtrl.text.trim(),
-                                  category: selectedCategory,
+                                  category: '-',
                                 ),
                               );
                             }
@@ -478,14 +452,25 @@ class _VendorListPageState extends State<VendorListPage> {
                       width: 110,
                       child: ElevatedButton(
                         onPressed: () async {
+                          // 1. Validasi mutlak: Pastikan kita punya ID dari database!
+                          if (vendor.id == null) {
+                            _showSnackbar('Error: ID Vendor tidak valid', Colors.red);
+                            return;
+                          }
+
                           final provider = Provider.of<VendorProvider>(
-                            context, listen: false);
-                          await provider.deleteVendor(index);
-                          if (ctx.mounted) Navigator.pop(ctx);
-                          _showSnackbar(
-                            '${vendor.name} dihapus',
-                            Colors.red,
-                          );
+                              context, listen: false);
+
+                          // 2. Eksekusi dan tunggu laporan hasilnya (Kirim vendor.id, BUKAN index)
+                          final success = await provider.deleteVendor(vendor.id!);
+                          if (ctx.mounted) Navigator.pop(ctx); // Tutup dialog
+
+                          // 3. Tampilkan notifikasi berdasarkan fakta dari server
+                          if (success) {
+                            _showSnackbar('${vendor.name} dihapus', Colors.red);
+                          } else {
+                            _showSnackbar('Gagal menghapus. Cek console log.', Colors.orange);
+                          }
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.red,

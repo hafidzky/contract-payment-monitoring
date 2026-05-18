@@ -3,28 +3,18 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/currency_formatter.dart';
-import '../../../data/models/contract_document.dart';
+import '../../../data/providers/vendor_provider.dart';
 import 'add_contract_step4.dart';
 import '../widgets/step_indicator.dart';
 
 class AddContractTerminPage extends StatefulWidget {
-  final String vendorName;
-  final String noKontrak;
-  final String namaPekerjaan;
-  final double totalNilaiKontrak;
-  final String startDate;
-  final String endDate;
-  final List<ContractDocument> uploadedDocs;
+  final Vendor selectedVendor;
+  final Map<String, dynamic> step2Data;
 
   const AddContractTerminPage({
-    super.key,
-    required this.vendorName,
-    required this.noKontrak,
-    required this.namaPekerjaan,
-    required this.totalNilaiKontrak,
-    required this.startDate,
-    required this.endDate,
-    required this.uploadedDocs,
+    super.key, 
+    required this.selectedVendor, 
+    required this.step2Data,
   });
 
   @override
@@ -36,22 +26,29 @@ class _AddContractTerminPageState extends State<AddContractTerminPage> {
   final Map<int, bool> _overLimitMap = {};
   final Set<int> _duplicateDateIndexes = {};
   
+  // Mesin penarik nilai kontrak yang kebal terhadap Null dan salah ketik kunci
+  double get _safeTotalNilai {
+    final rawVal = widget.step2Data['nilai_kontrak'] ?? 0;
+    return double.tryParse(rawVal.toString()) ?? 0.0;
+  }
+
   // ← Throttle snackbar agar tidak berulang
   DateTime? _lastSnackbarTime;
 
-  // Parse startDate dari step 2 (format: d-M-yyyy)
+  // Perbaiki pencarian tanggal mulai
   DateTime get _contractStartDate {
     try {
-      final parts = widget.startDate.split('-');
+      final parts = (widget.step2Data['tgl_mulai'] as String).split('-');
       return DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
     } catch (_) {
       return DateTime.now();
     }
   }
 
+  // Perbaiki pencarian tanggal selesai
   DateTime get _contractEndDate {
     try {
-      final parts = widget.endDate.split('-');
+      final parts = (widget.step2Data['tgl_selesai'] as String).split('-');
       return DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
     } catch (_) {
       return DateTime(2035);
@@ -159,7 +156,7 @@ class _AddContractTerminPageState extends State<AddContractTerminPage> {
 
     // Cek total nominal
     final double currentTotal = _calculateCurrentTotal();
-    if ((currentTotal - widget.totalNilaiKontrak).abs() > 0.1) {
+    if ((currentTotal - _safeTotalNilai).abs() > 0.1) {
       _showSnackbarOnce('Total termin belum sesuai nilai kontrak.', Colors.red);
       return;
     }
@@ -169,6 +166,7 @@ class _AddContractTerminPageState extends State<AddContractTerminPage> {
         'title':   t['title'].toString(),
         'nominal': (t['nominal'] as double).toString(),
         'date':    DateFormat('dd MMM yyyy').format(t['dueDate'] as DateTime),
+        'db_date': DateFormat('yyyy-MM-dd').format(t['dueDate'] as DateTime),
         'amount':  CurrencyFormatter.toFullRupiah(t['nominal']),
         'notes':   t['notes'].toString(),
         'status':  'Menunggu Pembayaran',
@@ -179,15 +177,11 @@ class _AddContractTerminPageState extends State<AddContractTerminPage> {
     Navigator.push(
       context, 
       MaterialPageRoute(
-        builder: (_) => AddContractReviewPage(
-          vendorName:        widget.vendorName,
-          noKontrak:         widget.noKontrak,
-          namaPekerjaan:     widget.namaPekerjaan,
-          totalNilaiKontrak: widget.totalNilaiKontrak,
-          startDate:         widget.startDate,
-          endDate:           widget.endDate,
-          terminList:        finalTerminList,
-          uploadedDocs:      widget.uploadedDocs,
+        builder: (_) => AddContractReviewPage( 
+          selectedVendor: widget.selectedVendor,
+          step2Data: widget.step2Data,
+          terminList: finalTerminList, 
+          uploadedDocs: const [],
         ),
       )
     );
@@ -196,7 +190,8 @@ class _AddContractTerminPageState extends State<AddContractTerminPage> {
   @override
   Widget build(BuildContext context) {
     final double currentTotal = _calculateCurrentTotal();
-    final double remaining    = widget.totalNilaiKontrak - currentTotal;
+    final double totalNilaiKontrak = _safeTotalNilai;
+    final double remaining    = totalNilaiKontrak - currentTotal;
     final bool   isBalanced   = remaining.abs() < 0.1;
 
     return Scaffold(
@@ -333,7 +328,7 @@ class _AddContractTerminPageState extends State<AddContractTerminPage> {
                     style: TextStyle(color: Colors.white70, fontSize: 11)),
                   const SizedBox(height: 2),
                   Text(
-                    CurrencyFormatter.toFullRupiah(widget.totalNilaiKontrak),
+                    CurrencyFormatter.toFullRupiah(_safeTotalNilai),
                     style: const TextStyle(color: Colors.white,
                       fontSize: 18, fontWeight: FontWeight.bold)),
                 ],
@@ -584,7 +579,7 @@ class _AddContractTerminPageState extends State<AddContractTerminPage> {
                           .where((e) => e.key != index)
                           .fold(0.0, (sum, e) =>
                             sum + (e.value['nominal'] as double));
-                        final double maxAllowed = widget.totalNilaiKontrak - otherTotal;
+                        final double maxAllowed = _safeTotalNilai - otherTotal;
 
                         if (clean > maxAllowed && maxAllowed >= 0) {
                           final capped = maxAllowed;

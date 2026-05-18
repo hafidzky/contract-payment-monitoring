@@ -13,7 +13,7 @@ class AddContractPage extends StatefulWidget {
 }
 
 class _AddContractPageState extends State<AddContractPage> {
-  String? _selectedVendorName;
+  Vendor? _selectedVendor;
   String _searchQuery = '';
   bool _showError = false;
 
@@ -21,18 +21,20 @@ class _AddContractPageState extends State<AddContractPage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<VendorProvider>().loadVendors();
+      context.read<VendorProvider>().fetchVendors();
     });
   }
 
   void _onNext() {
-    if (_selectedVendorName == null) {
+    if (_selectedVendor == null) {
       setState(() => _showError = true);
       return;
     }
     setState(() => _showError = false);
     Navigator.push(context, MaterialPageRoute(
-      builder: (_) => AddContractDetailPage(vendorName: _selectedVendorName!),
+      builder: (_) => AddContractDetailPage(
+        selectedVendor: _selectedVendor!,
+      ),
     ));
   }
 
@@ -152,12 +154,13 @@ class _AddContractPageState extends State<AddContractPage> {
   }
 
   Widget _buildVendorCard(Vendor vendor) {
-    final isSelected = vendor.name == _selectedVendorName;
+    // Bandingkan ID-nya, bukan namanya, untuk mencegah bug jika ada 2 nama vendor mirip
+    final isSelected = _selectedVendor?.id == vendor.id;
 
     return GestureDetector(
       onTap: () => setState(() {
-        _selectedVendorName = vendor.name;
-        _showError = false; 
+        _selectedVendor = vendor; // Simpan seluruh objeknya
+        _showError = false;
       }),
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),

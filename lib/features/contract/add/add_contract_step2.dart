@@ -3,15 +3,15 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
-
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/contract_document.dart';
 import 'add_contract_step3.dart';
+import '../../../data/providers/vendor_provider.dart';
 import '../widgets/step_indicator.dart';
 
 class AddContractDetailPage extends StatefulWidget {
-  final String vendorName;
-  const AddContractDetailPage({super.key, required this.vendorName});
+  final Vendor selectedVendor;
+  const AddContractDetailPage({super.key, required this.selectedVendor});
 
   @override
   State<AddContractDetailPage> createState() => _AddContractDetailPageState();
@@ -23,6 +23,7 @@ class _AddContractDetailPageState extends State<AddContractDetailPage> {
   final _nilaiCtrl = TextEditingController();
   final List<ContractDocument> _uploadedDocs = [];
   final _namaPekerjaanCtrl = TextEditingController();
+  final _durasiCtrl = TextEditingController();
 
   DateTime? _startDate;
   DateTime? _endDate;
@@ -33,17 +34,25 @@ class _AddContractDetailPageState extends State<AddContractDetailPage> {
     _noKontrakCtrl.dispose();
     _nilaiCtrl.dispose();
     _namaPekerjaanCtrl.dispose();
+    _durasiCtrl.dispose();
     super.dispose();
-  }
-
-  String _formatDate(DateTime? date) {
-    if (date == null) return '';
-    return '${date.day}-${date.month}-${date.year}';
   }
 
   String _displayDate(DateTime? date) {
     if (date == null) return 'Pilih tanggal';
     return DateFormat('dd MMM yyyy').format(date);
+  }
+
+  void _calculateEndDate() {
+    if (_startDate != null && _durasiCtrl.text.isNotEmpty) {
+      final days = int.tryParse(_durasiCtrl.text) ?? 0;
+      setState(() {
+        // Menambahkan durasi (hari) ke tanggal mulai
+        _endDate = _startDate!.add(Duration(days: days));
+      });
+    } else {
+      setState(() => _endDate = null);
+    }
   }
 
   Future<void> _pickStartDate() async {
@@ -59,28 +68,12 @@ class _AddContractDetailPageState extends State<AddContractDetailPage> {
         child: child!,
       ),
     );
-    if (picked != null) setState(() => _startDate = picked);
-  }
-
-  Future<void> _pickEndDate() async {
-    final firstAllowed = _startDate != null
-        ? _startDate!.add(const Duration(days: 1))
-        : DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _endDate != null && _endDate!.isAfter(firstAllowed)
-          ? _endDate!
-          : firstAllowed,
-      firstDate: firstAllowed,
-      lastDate: DateTime(2100),
-      builder: (ctx, child) => Theme(
-        data: Theme.of(ctx).copyWith(
-            colorScheme:
-                const ColorScheme.light(primary: AppColors.primary)),
-        child: child!,
-      ),
-    );
-    if (picked != null) setState(() => _endDate = picked);
+    if (picked != null) {
+      setState(() {
+        _startDate = picked;
+      });
+      _calculateEndDate();
+    }
   }
  
   Future<void> _pickDocument() async {
@@ -115,26 +108,26 @@ class _AddContractDetailPageState extends State<AddContractDetailPage> {
 
   void _onNext() {
     if (!_formKey.currentState!.validate()) return;
-    if (_startDate == null || _endDate == null) {
+    if (_startDate == null) {
       setState(() => _showDateError = true); 
       return;
     }
     setState(() => _showDateError = false);
     
-    final rawNilai = _nilaiCtrl.text.replaceAll('.', '');
-    final totalNilai = double.tryParse(rawNilai) ?? 0.0;
+    final step2Data = {
+      'no_kontrak': _noKontrakCtrl.text.trim(),
+      'nama_pekerjaan': _namaPekerjaanCtrl.text.trim(),
+      'nilai_kontrak': double.tryParse(_nilaiCtrl.text.replaceAll('.', '')) ?? 0.0,
+      'tgl_mulai': DateFormat('d-M-yyyy').format(_startDate!),
+      'tgl_selesai': _endDate != null ? DateFormat('d-M-yyyy').format(_endDate!) : '',
+    };
     
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => AddContractTerminPage(
-          vendorName: widget.vendorName,
-          noKontrak: _noKontrakCtrl.text.trim(),
-          namaPekerjaan: _namaPekerjaanCtrl.text.trim(), 
-          totalNilaiKontrak: totalNilai,
-          startDate: _formatDate(_startDate),
-          endDate: _formatDate(_endDate),
-          uploadedDocs: _uploadedDocs, 
+          selectedVendor: widget.selectedVendor,
+          step2Data: step2Data,
         ),
       ),
     );
@@ -276,6 +269,7 @@ class _AddContractDetailPageState extends State<AddContractDetailPage> {
                               // Tanggal
                               _buildLabel('Periode Kontrak'),
                               Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Expanded(
                                       child: _buildDatePicker(
@@ -286,24 +280,53 @@ class _AddContractDetailPageState extends State<AddContractDetailPage> {
                                   )),
                                   const SizedBox(width: 12),
                                   Expanded(
-                                      child: _buildDatePicker(
-                                    label: 'Tgl Selesai',
-                                    value: _displayDate(_endDate),
-                                    onTap:
-                                        _startDate == null ? null : _pickEndDate,
-                                    hasValue: _endDate != null,
-                                    disabled: _startDate == null,
-                                  )),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text('Durasi (Hari)',
+                                            style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                        const SizedBox(height: 6),
+                                        TextFormField(
+                                          controller: _durasiCtrl,
+                                          keyboardType: TextInputType.number,
+                                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                          onChanged: (_) => _calculateEndDate(),
+                                          decoration: _inputDecoration('Cth: 30', Icons.timer).copyWith(
+                                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+                                          ),
+                                          validator: (v) => v == null || v.isEmpty ? 'Wajib diisi' : null,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ],
                               ),
+                              const SizedBox(height: 12),
 
-                              if (_showDateError && (_startDate == null || _endDate == null)) ...[
+                              _buildLabel('Tanggal Selesai (Otomatis)'),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: Colors.grey.shade300),
+                                ),
+                                child: Text(
+                                  _endDate != null ? _displayDate(_endDate) : '-',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: _endDate != null ? FontWeight.w600 : FontWeight.normal,
+                                    color: _endDate != null ? AppColors.primary : Colors.grey,
+                                  ),
+                                ),
+                              ),
+
+                              if (_showDateError && _startDate == null) ...[
                                 const SizedBox(height: 6),
-                                Text(
-                                  _startDate == null
-                                      ? '* Pilih tanggal mulai terlebih dahulu'
-                                      : '* Pilih tanggal selesai terlebih dahulu',
-                                  style: const TextStyle(fontSize: 11, color: Colors.red),
+                                const Text(
+                                  '* Pilih tanggal mulai terlebih dahulu',
+                                  style: TextStyle(fontSize: 11, color: Colors.red),
                                 ),
                               ],
                               

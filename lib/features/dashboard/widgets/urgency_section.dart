@@ -26,14 +26,20 @@ class UrgencySection extends StatelessWidget {
 
         if (daysLeft < 0) {
           // Sudah lewat jatuh tempo
-          timeLabel = "TERLAMBAT ${daysLeft.abs()} HARI";
-          itemColor = Colors.red.shade800;
+          timeLabel = "TERLEWAT ${daysLeft.abs()} HARI";
+          itemColor = Colors.red;
         } else if (daysLeft == 0) {
           timeLabel = "JATUH TEMPO HARI INI";
           itemColor = AppColors.error;
-        } else {
-          timeLabel = "H-$daysLeft JATUH TEMPO";
+        } else if (daysLeft <= 7) {
+          timeLabel = "MENDEKATI ($daysLeft HARI)";
           itemColor = daysLeft <= 7 ? AppColors.error : Colors.orange;
+        } else if (daysLeft <= 30) {
+          timeLabel = "AMAN ($daysLeft HARI)";
+          itemColor = Colors.green;
+        } else {
+          timeLabel = "MENUNGGU";
+          itemColor = Colors.grey;
         }
 
         urgentWidgets.add(_urgencyItem(
@@ -58,15 +64,17 @@ class UrgencySection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: const [
-            Icon(Icons.error_outline, color: AppColors.error, size: 20),
-            SizedBox(width: 8),
-            Text(
-              "Deadline Bulan Ini", 
-              style: TextStyle(
-                fontWeight: FontWeight.bold, 
-                fontSize: 20, 
-                color: AppColors.primary,
+          Row(children: [
+            const Icon(Icons.error_outline, color: AppColors.error, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: const Text(
+                "Deadline Bulan Ini", 
+                style: TextStyle(
+                  fontWeight: FontWeight.bold, 
+                  fontSize: 20, 
+                  color: AppColors.primary,
+                ),
               ),
             ),
           ]),
@@ -153,17 +161,23 @@ class UrgencySection extends StatelessWidget {
             fontSize: 20, 
             color: AppColors.primary,
           ),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
         ),
         const SizedBox(height: 4),
         Row(children: [
           Icon(Icons.info_outline, size: 14, color: Colors.blueGrey.shade400),
           const SizedBox(width: 6),
-          Text(
-            "Tindakan diperlukan sebelum batas waktu",
-            style: TextStyle(
-              fontSize: 13, 
-              color: Colors.blueGrey.shade600, 
-              fontWeight: FontWeight.w500,
+          Expanded(
+            child: Text(
+              "Tindakan diperlukan sebelum batas waktu",
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 13, 
+                color: Colors.blueGrey.shade600, 
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ]),

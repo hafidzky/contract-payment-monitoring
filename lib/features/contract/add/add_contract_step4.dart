@@ -1,64 +1,110 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'dart:convert';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../data/models/contract_document.dart';
+import '../../../data/providers/vendor_provider.dart';
 import '../../../data/providers/contract_provider.dart';
 import '../widgets/step_indicator.dart';
 
-class AddContractReviewPage extends StatelessWidget {
-  final String vendorName;
-  final String noKontrak;
-  final String namaPekerjaan;
-  final double totalNilaiKontrak;
-  final String startDate;
-  final String endDate;
+class AddContractReviewPage extends StatefulWidget {
+  final Vendor selectedVendor;
+  final Map<String, dynamic> step2Data;
   final List<Map<String, dynamic>> terminList;
-  final List<ContractDocument> uploadedDocs; 
+  final List<ContractDocument> uploadedDocs;
 
   const AddContractReviewPage({
     super.key,
-    required this.vendorName,
-    required this.noKontrak,
-    required this.namaPekerjaan,
-    required this.totalNilaiKontrak,
-    required this.startDate,
-    required this.endDate,
+    required this.selectedVendor,
+    required this.step2Data,
     required this.terminList,
-    required this.uploadedDocs, // ✅ BARU
+    required this.uploadedDocs,
   });
 
-  void _simpanKontrak(BuildContext context) {
-    // Buat ID kontrak
-    final contractId = noKontrak.isNotEmpty
-        ? noKontrak
-        : 'CNT-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
+  @override
+  State<AddContractReviewPage> createState() => _AddContractReviewPageState();
+}
 
-    final data = {
-      'name':        vendorName,
-      'id':          contractId,
-      'status':      'Active',
-      'type':        namaPekerjaan,
-      'nilai':       CurrencyFormatter.toFullRupiah(totalNilaiKontrak),
-      'timeline':    '$startDate - $endDate',
-      'termin_data': jsonEncode(terminList),
+class _AddContractReviewPageState extends State<AddContractReviewPage> {
+  bool _isLoading = false;
+
+  String get vendorName => widget.selectedVendor.name;
+  String get noKontrak => widget.step2Data['no_kontrak'] ?? '';
+  String get namaPekerjaan => widget.step2Data['nama_pekerjaan'] ?? '';
+  double get totalNilaiKontrak => widget.step2Data['nilai_kontrak'] ?? 0.0;
+  String get startDate => widget.step2Data['tgl_mulai'] ?? '';
+  String get endDate => widget.step2Data['tgl_selesai'] ?? '';
+
+  Future<void> _simpanKontrak(BuildContext context) async {
+    setState(() => _isLoading = true);
+
+    // Mesin pengubah '1-5-2026' menjadi '2026-05-01'
+    String formatTanggalKeDB(String tglLokal) {
+      try {
+        final p = tglLokal.split('-');
+        if (p.length == 3) {
+          return '${p[2]}-${p[1].padLeft(2, '0')}-${p[0].padLeft(2, '0')}';
+        }
+      } catch (_) {}
+      return tglLokal; // Kembalikan asli jika gagal
+    }
+
+    // 2. TAMBAHKAN MESIN PENGHITUNG HARI INI
+    int hitungDurasi(String start, String end) {
+      try {
+        final tglStart = DateTime.parse(formatTanggalKeDB(start));
+        final tglEnd = DateTime.parse(formatTanggalKeDB(end));
+        // Hitung selisih hari antara tanggal selesai dan tanggal mulai
+        final durasi = tglEnd.difference(tglStart).inDays;
+        return durasi > 0 ? durasi : 0; // Pastikan tidak minus
+      } catch (_) {
+        return 0;
+      }
+    }
+
+    final contractPayload = {
+      "vendor_id": widget.selectedVendor.id,
+      "contract_number": noKontrak,
+      "title": namaPekerjaan,
+      "total_value": totalNilaiKontrak.toInt(),
+      // GUNAKAN MESIN PENGUBAH TANGGAL DI SINI
+      "start_date": formatTanggalKeDB(startDate),
+      "duration_days": hitungDurasi(startDate, endDate),
+      "end_date": formatTanggalKeDB(endDate),
+      "termins": widget.terminList.map((termin) {
+        return {
+          // AMBIL DARI db_date YANG KITA BUAT DI LAYAR 3 TADI
+          "due_date": termin['db_date'] ?? formatTanggalKeDB(termin['date'] ?? ''),
+          // AMBIL DARI 'nominal' (ANGKA MURNI), BUKAN 'amount_raw' YANG KOSONG
+          "target_amount": termin['nominal'] != null ? double.tryParse(termin['nominal'].toString())?.toInt() ?? 0 : 0,
+          "description": termin['notes'] ?? "-",
+        };
+      }).toList()
     };
 
     final provider = Provider.of<ContractProvider>(context, listen: false);
+    final isSuccess = await provider.addContract(contractPayload);
 
-    // Simpan kontrak
-    provider.addContract(data);
+    if (mounted) setState(() => _isLoading = false);
 
-    // ✅ Simpan dokumen yang diupload di step 2
-    if (uploadedDocs.isNotEmpty) {
-      provider.addDocuments(contractId, uploadedDocs);
+    if (isSuccess) {
+      if (widget.uploadedDocs.isNotEmpty) {
+        provider.addDocuments(noKontrak, widget.uploadedDocs);
+      }
+      // Refresh data terbaru agar list UI ter-refresh otomatis
+      await provider.fetchContracts();
+      provider.addLog(noKontrak, 'Kontrak dibuat', 'create');
+      
+      if (context.mounted) {
+        _showSuccessDialog(context);
+      }
+    } else {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gagal menyimpan kontrak. Periksa inputan kembali.'), backgroundColor: Colors.red),
+        );
+      }
     }
-
-    // ✅ Log pertama: kontrak dibuat
-    provider.addLog(contractId, 'Kontrak dibuat', 'create');
-
-    _showSuccessDialog(context);
   }
 
   void _showSuccessDialog(BuildContext context) {
@@ -140,8 +186,7 @@ class AddContractReviewPage extends StatelessWidget {
                       const SizedBox(height: 16),
                       _buildTerminCard(),
 
-                      // ✅ BARU: tampilkan dokumen yang akan diupload (jika ada)
-                      if (uploadedDocs.isNotEmpty) ...[
+                      if (widget.uploadedDocs.isNotEmpty) ...[
                         const SizedBox(height: 16),
                         _buildDocsPreviewCard(),
                       ],
@@ -223,9 +268,9 @@ class AddContractReviewPage extends StatelessWidget {
           _reviewRow('Nilai Kontrak',   CurrencyFormatter.toFullRupiah(totalNilaiKontrak)),
           _reviewRow('Tanggal Mulai',   startDate),
           _reviewRow('Tanggal Selesai', endDate),
-          _reviewRow('Jumlah Termin',   '${terminList.length}x pembayaran'),
-          if (uploadedDocs.isNotEmpty)
-            _reviewRow('Dokumen', '${uploadedDocs.length} file terlampir'),
+          _reviewRow('Jumlah Termin',   '${widget.terminList.length}x pembayaran'),
+          if (widget.uploadedDocs.isNotEmpty)
+            _reviewRow('Dokumen', '${widget.uploadedDocs.length} file terlampir'),
         ],
       ),
     );
@@ -265,7 +310,7 @@ class AddContractReviewPage extends StatelessWidget {
           const Text('Jadwal Termin',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.primary)),
           const SizedBox(height: 12),
-          ...terminList.asMap().entries.map((e) => Padding(
+          ...widget.terminList.asMap().entries.map((e) => Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -345,14 +390,14 @@ class AddContractReviewPage extends StatelessWidget {
                   color: AppColors.primary.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Text('${uploadedDocs.length}',
+                child: Text('${widget.uploadedDocs.length}',
                   style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold,
                     color: AppColors.primary)),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          ...uploadedDocs.map((doc) => Padding(
+          ...widget.uploadedDocs.map((doc) => Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: Row(
               children: [
@@ -409,10 +454,12 @@ class AddContractReviewPage extends StatelessWidget {
               Expanded(
                 flex: 2,
                 child: ElevatedButton.icon(
-                  onPressed: () => _simpanKontrak(context),
-                  icon: const Icon(Icons.save_outlined, color: Colors.white, size: 18),
-                  label: const Text('Simpan Kontrak',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  onPressed: _isLoading ? null : () => _simpanKontrak(context),
+                  icon: _isLoading 
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : const Icon(Icons.save_outlined, color: Colors.white, size: 18),
+                  label: Text(_isLoading ? 'Menyimpan...' : 'Simpan Kontrak',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     padding: const EdgeInsets.symmetric(vertical: 14),

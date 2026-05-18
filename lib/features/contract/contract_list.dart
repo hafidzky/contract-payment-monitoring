@@ -22,6 +22,15 @@ class _ContractListPageState extends State<ContractListPage> {
   static const int _itemsPerPage = 10;
 
   @override
+  void initState() {
+    super.initState();
+    // Memaksa provider menarik data dari database (API) setelah render pertama
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ContractProvider>().fetchContracts(); // Pastikan fungsinya bernama fetchContracts() di provider
+    });
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();

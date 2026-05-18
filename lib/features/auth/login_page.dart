@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../data/providers/auth_provider.dart';
 import '../../core/constants/app_colors.dart';
 
 class LoginPage extends StatefulWidget {
@@ -27,69 +29,27 @@ class _LoginPageState extends State<LoginPage> {
     if (isLoading) return;
 
     setState(() => isLoading = true);
-    await Future.delayed(const Duration(seconds: 1));
     
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final result = await authProvider.login(
+      _usernameController.text,
+      _passwordController.text,
+    );
+
+    setState(() => isLoading = false);
     if (!mounted) return;
 
-    if (_usernameController.text == "admin" &&
-        _passwordController.text == "admin") {
-      setState(() => isLoading = false);
-        showDialog(
-            context: context,
-            barrierDismissible: false,
-            barrierColor: Colors.transparent,
-            builder: (ctx) => Align(
-              alignment: Alignment.bottomCenter,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 40),
-                child: Material(
-                  color: Colors.transparent,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 14),
-                    decoration: BoxDecoration(
-                      color: Colors.green.shade600,
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.2),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.check_circle_outline,
-                            color: Colors.white, size: 18),
-                        SizedBox(width: 8),
-                        Text('Login Berhasil',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14
-                            )
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-      await Future.delayed(const Duration(milliseconds: 1000));
-      if (!mounted) return;
+    if (result['success']) {
       Navigator.pushReplacementNamed(context, '/main');
     } else {
-      setState(() => isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Username / Password salah"),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showError(result['message']);
     }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
   }
 
   @override
@@ -145,7 +105,7 @@ class _LoginPageState extends State<LoginPage> {
                                 ),
                                 const SizedBox(height: 12),
                                 const Text(
-                                  "Vendor Contract &\nPayment Monitoring",
+                                  "Sistem Monitoring Kontrak Pembayaran",
                                   style: TextStyle(
                                     fontSize: 38,
                                     fontWeight: FontWeight.w800,

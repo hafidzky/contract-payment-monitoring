@@ -1,89 +1,116 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http; // Ini jembatan ke Laravel-mu
 
 class Vendor {
+  final int? id; // Wajib ada karena MySQL menggunakan ID
   final String name;
   final String category;
 
   Vendor({
+    this.id,
     required this.name,
-    required this.category,
+    this.category = '-', // Default, karena di Laravelmu tidak ada kolom ini
   });
 
-  Map<String, dynamic> toMap() => {
-    'name':     name,
-    'category': category,
-  };
-
   factory Vendor.fromMap(Map<String, dynamic> map) => Vendor(
-    name:     map['name'] ?? '',
-    category: map['category'] ?? '',
+    id: map['id'],
+    name: map['name'] ?? '',
+    category: map['category'] ?? '-',
   );
 }
 
 class VendorProvider with ChangeNotifier {
   final List<Vendor> _vendors = [];
   bool _isLoading = false;
-  bool _isLoaded  = false;
-  static const String _storageKey = 'vendors_data';
 
-  List<Vendor> get vendors  => List.unmodifiable(_vendors);
-  bool get isLoading        => _isLoading;
-  bool get isLoaded         => _isLoaded;
+  List<Vendor> get vendors => List.unmodifiable(_vendors);
+  bool get isLoading => _isLoading;
 
-  Future<void> loadVendors() async {
-    if (_isLoaded || _isLoading) return;
-
+  // MESIN UTAMA: Mengambil data dari Laravel
+  Future<void> fetchVendors() async {
     _isLoading = true;
-    notifyListeners();
 
+    // Perhatikan: notifyListeners dihilangkan di sini agar tidak konflik saat render pertama
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final String? jsonStr = prefs.getString(_storageKey);
-      if (jsonStr != null) {
-        final List<dynamic> decoded = jsonDecode(jsonStr);
+      final url = Uri.parse('http://127.0.0.1:8000/api/v1/vendors');
+      final response = await http.get(
+        url,
+        headers: {'Accept': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        final List<dynamic> data = responseData['data'];
+
         _vendors.clear();
-        _vendors.addAll(decoded.map((e) => Vendor.fromMap(e)).toList());
+        _vendors.addAll(data.map((e) => Vendor.fromMap(e)).toList());
+      } else {
+        debugPrint('Gagal mengambil data dari server: ${response.statusCode}');
       }
-      _isLoaded = true;
     } catch (e) {
-      debugPrint('[VendorProvider] loadVendors error: $e');
+      debugPrint('[VendorProvider] fetchVendors error: $e');
     } finally {
       _isLoading = false;
-      notifyListeners();
+      notifyListeners(); // Baru refresh layar setelah data didapat
     }
   }
 
-  Future<void> _save() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-        _storageKey,
-        jsonEncode(_vendors.map((v) => v.toMap()).toList()),
-      );
-    } catch (e) {
-      debugPrint('[VendorProvider] _save error: $e');
-    }
-  }
-
+  // --- Fungsi Add, Update, Delete untuk sementara kita biarkan kosong / sekadar update UI lokal ---
+  // Fokusmu HANYA menampilkan data MySQL ke layar terlebih dahulu.
+  // MESIN PENAMBAH DATA KE MYSQL
   Future<void> addVendor(Vendor vendor) async {
-    _vendors.insert(0, vendor);
-    await _save();
-    notifyListeners();
+    try {
+      final url = Uri.parse('http://127.0.0.1:8000/api/v1/vendors');
+
+      // Kita menembakkan POST request ke Laravel
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json', // Wajib ada untuk POST JSON
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({
+          'name': vendor.name,
+          // 'contact_person': vendor.contactPerson, // Buka jika kamu butuh di masa depan
+          // 'phone_number': vendor.phoneNumber,
+        }),
+      );
+
+      if (response.statusCode == 201) {
+        await fetchVendors();
+      } else {
+        debugPrint('Server menolak data: ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('[VendorProvider] Gagal POST addVendor: $e');
+    }
   }
 
   Future<void> updateVendor(int index, Vendor updated) async {
     if (index < 0 || index >= _vendors.length) return;
     _vendors[index] = updated;
-    await _save();
     notifyListeners();
   }
 
-  Future<void> deleteVendor(int index) async {
-    if (index < 0 || index >= _vendors.length) return;
-    _vendors.removeAt(index);
-    await _save();
-    notifyListeners();
+  Future<bool> deleteVendor(int id) async {
+    try {
+      final url = Uri.parse('http://127.0.0.1:8000/api/v1/vendors/$id');
+      final response = await http.delete(
+        url,
+        headers: {'Accept': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        await fetchVendors(); // Sinkronisasi data terbaru
+        return true; // Berhasil!
+      } else {
+        debugPrint('Server menolak hapus: ${response.body}');
+        return false; // Gagal!
+      }
+    } catch (e) {
+      debugPrint('[VendorProvider] Gagal DELETE: $e');
+      return false; // Gagal!
+    }
   }
 }

@@ -21,6 +21,8 @@ class _ContractDetailPageState extends State<ContractDetailPage> {
   int activeTab = 0;
   List<dynamic> _termins = [];
   List<bool> _paidStatesBefore = [];
+  late Map<String, dynamic> _currentContractData;
+  bool _isLoading = false;
   late TextEditingController _nameController;
   late TextEditingController _typeController;
 
@@ -54,7 +56,7 @@ class _ContractDetailPageState extends State<ContractDetailPage> {
 
   DateTime get _contractEndDate {
     try {
-      String timeline = widget.contractData['timeline'] ?? '';
+      String timeline = _currentContractData['timeline'] ?? '';
       if (timeline.contains(' - ')) {
         return DateFormat('d-M-yyyy')
             .parse(timeline.split(' - ')[1].trim());
@@ -64,25 +66,102 @@ class _ContractDetailPageState extends State<ContractDetailPage> {
   }
 
   double get _totalNilaiKontrak =>
-      _parseAmountToDouble(widget.contractData['nilai'] ?? '0');
+      _parseAmountToDouble(_currentContractData['nilai']?.toString() ?? '0');
 
-  String get _contractId => widget.contractData['id'] ?? '';
+  String get _contractId => _currentContractData['id']?.toString() ?? widget.contractData['id']?.toString() ?? '';
 
   // ─── LIFECYCLE ────────────────────────────────────────────────
 
   @override
   void initState() {
     super.initState();
+    _currentContractData = Map<String, dynamic>.from(widget.contractData);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchDataFromDatabase();
+    });
     _loadTermins();
-    _nameController =
-        TextEditingController(text: widget.contractData['name'] ?? '');
-    _typeController =
-        TextEditingController(text: widget.contractData['type'] ?? '');
+    _nameController = TextEditingController(text: _currentContractData['name'] ?? '');
+    _typeController = TextEditingController(text: _currentContractData['type'] ?? '');
+  }
+
+  // ─── PULL FROM DATABASE ───────────────────────────────────────
+  Future<void> _fetchDataFromDatabase() async {
+    setState(() => _isLoading = true);
+    try {
+      // 1. Tarik data segar dari Laravel
+      await context.read<ContractProvider>().fetchContracts();
+      
+      if (!mounted) return;
+      final provider = context.read<ContractProvider>();
+
+      // Mengganti firstWhere dengan indexWhere untuk menghindari error 'null comparison'
+      final index = provider.allContracts.indexWhere((c) => c['id'].toString() == _contractId);
+
+      if (index != -1) {
+        // BONGKAR BUNGKUSAN JSON DARI PROVIDER
+        final String rawString = provider.allContracts[index]['raw_json']?.toString() ?? '{}';
+        final Map<String, dynamic> rawApiData = jsonDecode(rawString);
+
+        setState(() {
+          // --- PROSES TRANSLASI DARI LARAVEL KE UI FLUTTER ---
+
+          // A. Terjemahkan Info Vendor (Deklarasikan sebagai Map secara eksplisit)
+          final Map<String, dynamic> vendor = rawApiData['vendor'] ?? {};
+          _currentContractData['name'] = vendor['name']?.toString() ?? 'Vendor Tidak Diketahui';
+          _currentContractData['type'] = vendor['category']?.toString() ?? '-';
+
+          // B. Terjemahkan Nilai & Status
+          _currentContractData['nilai'] = rawApiData['total_value']?.toString() ?? '0';
+          final String dbStatus = rawApiData['status']?.toString().toLowerCase() ?? '';
+          _currentContractData['status'] = dbStatus == 'active' ? 'Active' : 'Finished';
+
+          // C. Terjemahkan Tanggal (Beri jaminan bahwa ini adalah String, bukan Null)
+          try {
+            final String rawStart = rawApiData['start_date']?.toString() ?? '';
+            final String rawEnd = rawApiData['end_date']?.toString() ?? '';
+
+            final start = DateFormat('yyyy-MM-dd').parse(rawStart);
+            final end = DateFormat('yyyy-MM-dd').parse(rawEnd);
+            final fmt = DateFormat('d-M-yyyy');
+            _currentContractData['timeline'] = '${fmt.format(start)} - ${fmt.format(end)}';
+          } catch (_) {
+            _currentContractData['timeline'] = '-';
+          }
+
+          // D. Terjemahkan Termin
+          final List<dynamic> payments = rawApiData['payments'] ?? [];
+          final translatedTermins = payments.map((p) {
+            String formattedDate = '-';
+            try {
+              final d = DateFormat('yyyy-MM-dd').parse(p['due_date']?.toString() ?? '');
+              formattedDate = DateFormat('dd MMM yyyy').format(d);
+            } catch (_) {}
+            return {
+              'title': p['description'] != null && p['description'].toString() != '-' ? p['description'].toString() : 'Termin ${p['termin_number'] ?? 1}',
+              'amount': p['target_amount']?.toString() ?? '0',
+              'date': formattedDate,
+              'is_paid': p['status'] == 'paid' || p['status'] == 'lunas',
+              'notes': p['description']?.toString() ?? '',
+            };
+          }).toList();
+
+          _currentContractData['termin_data'] = jsonEncode(translatedTermins);
+          _loadTermins();
+          _nameController.text = _currentContractData['name'] ?? '';
+          _typeController.text = _currentContractData['type'] ?? '';
+        });
+      }
+    } catch (e) {
+      debugPrint('Error pulling data from database: $e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   void _loadTermins() {
     try {
-      _termins = jsonDecode(widget.contractData['termin_data'] ?? '[]');
+      _termins = jsonDecode(_currentContractData['termin_data'] ?? '[]');
       for (var t in _termins) {
         t['is_paid'] = _parseBool(t['is_paid']);
       }
@@ -132,11 +211,18 @@ class _ContractDetailPageState extends State<ContractDetailPage> {
           'text':   'Terlewat ${diff.abs()} Hari',
           'active': true,
         };
-      } else if (diff <= 30) {
+      } else if (diff <= 7) {
         return {
           'color':  Colors.orange,
           'icon':   Icons.warning,
           'text':   'Mendekati ($diff Hari)',
+          'active': true,
+        };
+      } else if (diff <= 30) {
+        return {
+          'color':  Colors.green,
+          'icon':   Icons.check_circle,
+          'text':   'Aman ($diff Hari)',
           'active': true,
         };
       } else {
@@ -163,7 +249,7 @@ class _ContractDetailPageState extends State<ContractDetailPage> {
       int index, StateSetter setDialogState) async {
     DateTime contractStart = DateTime.now();
     try {
-      final timeline = widget.contractData['timeline'] ?? '';
+      final timeline = _currentContractData['timeline'] ?? '';
       if (timeline.contains(' - ')) {
         contractStart =
             DateFormat('d-M-yyyy').parse(timeline.split(' - ')[0].trim());
@@ -275,8 +361,8 @@ class _ContractDetailPageState extends State<ContractDetailPage> {
                       controller: _nameController,
                       label: 'Nama Vendor',
                       icon: Icons.business,
-                      onChanged: (v) => setState(
-                          () => widget.contractData['name'] = v),
+                  onChanged: (v) => setState(
+                      () => _currentContractData['name'] = v),
                     ),
                     const SizedBox(height: 16),
 
@@ -284,8 +370,8 @@ class _ContractDetailPageState extends State<ContractDetailPage> {
                       controller: _typeController,
                       label: 'Kategori',
                       icon: Icons.category,
-                      onChanged: (v) => setState(
-                          () => widget.contractData['type'] = v),
+                  onChanged: (v) => setState(
+                      () => _currentContractData['type'] = v),
                     ),
                     const SizedBox(height: 32),
 
@@ -462,9 +548,9 @@ class _ContractDetailPageState extends State<ContractDetailPage> {
                         // Reset semua perubahan ke kondisi awal
                         _loadTermins();
                         _nameController.text =
-                            widget.contractData['name'] ?? '';
+                        _currentContractData['name'] ?? '';
                         _typeController.text =
-                            widget.contractData['type'] ?? '';
+                        _currentContractData['type'] ?? '';
                         setState(() {});
                         Navigator.pop(ctx);
                       },
@@ -554,6 +640,10 @@ class _ContractDetailPageState extends State<ContractDetailPage> {
         .indexWhere((c) => c['id']?.toString() == _contractId);
 
     if (index != -1) {
+      _currentContractData['name']        = _nameController.text;
+      _currentContractData['type']        = _typeController.text;
+      _currentContractData['termin_data'] = updateJson;
+      
       widget.contractData['name']        = _nameController.text;
       widget.contractData['type']        = _typeController.text;
       widget.contractData['termin_data'] = updateJson;
@@ -784,7 +874,7 @@ class _ContractDetailPageState extends State<ContractDetailPage> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Detail Kontrak: ${widget.contractData['id'] ?? '-'}',
+          'Detail Kontrak: ${_currentContractData['id'] ?? '-'}',
           style: const TextStyle(
               fontWeight: FontWeight.bold, fontSize: 16),
         ),
@@ -815,6 +905,8 @@ class _ContractDetailPageState extends State<ContractDetailPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+              if (_isLoading)
+                const LinearProgressIndicator(color: AppColors.primary),
                 _buildHeader(),
                 const Divider(height: 1, thickness: 1),
                 Padding(
@@ -849,7 +941,7 @@ class _ContractDetailPageState extends State<ContractDetailPage> {
   // ─── HEADER ───────────────────────────────────────────────────
 
   Widget _buildHeader() {
-    String rawStatus     = widget.contractData['status'] ?? 'Unknown';
+    String rawStatus     = _currentContractData['status'] ?? 'Unknown';
     String displayStatus = rawStatus;
     Color  statusColor   = _getStatusColor(rawStatus);
 
@@ -876,14 +968,14 @@ class _ContractDetailPageState extends State<ContractDetailPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  widget.contractData['name'] ?? 'Vendor Tidak Diketahui',
+                _currentContractData['name'] ?? 'Vendor Tidak Diketahui',
                   style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w900,
                       color: AppColors.primary),
                 ),
                 Text(
-                  widget.contractData['type'] ?? 'Kategori Umum',
+                _currentContractData['type'] ?? 'Kategori Umum',
                   style: const TextStyle(
                       color: Colors.grey, fontSize: 14),
                 ),
@@ -895,11 +987,11 @@ class _ContractDetailPageState extends State<ContractDetailPage> {
                     _infoLabel(
                       'NILAI KONTRAK',
                       CurrencyFormatter.toFullRupiah(
-                          widget.contractData['nilai']),
+                        _currentContractData['nilai']?.toString() ?? '0'),
                     ),
                     _infoLabel(
                       'TIMELINE',
-                      widget.contractData['timeline'] ?? '-',
+                    _currentContractData['timeline'] ?? '-',
                       isRed: true,
                     ),
                   ],
@@ -966,7 +1058,7 @@ class _ContractDetailPageState extends State<ContractDetailPage> {
     final widgets = <Widget>[];
 
     for (int i = 0; i < count; i++) {
-      final termin = _termins.isNotEmpty ? _termins[i] : {};
+      final termin = Map<String, dynamic>.from(_termins[i]);
       final status = _calculateTerminStatus(termin);
       widgets.add(_timelineNode(
           'T${i + 1}', status['icon'], status['color'], status['active']));
