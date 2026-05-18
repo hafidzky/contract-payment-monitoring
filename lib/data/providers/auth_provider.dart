@@ -9,8 +9,8 @@ class AuthProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
 
   String get baseUrl {
-    if (kIsWeb) return 'http://localhost:8000/api';
-    if (Platform.isAndroid) return 'http://10.0.2.2:8000/api';
+    if (kIsWeb) return 'http://10.201.42.44:8000/api';
+    if (Platform.isAndroid) return 'http://10.201.42.44:8000/api';
     return 'http://10.201.42.44:8000/api';
   }
 

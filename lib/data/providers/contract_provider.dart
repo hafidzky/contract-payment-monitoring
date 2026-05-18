@@ -56,7 +56,7 @@ class ContractProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final url = Uri.parse('http://127.0.0.1:8000/api/v1/contracts');
+      final url = Uri.parse('http://10.201.42.44:8000/api/v1/contracts');
       final response = await http.get(
         url,
         headers: {'Accept': 'application/json'},
@@ -112,7 +112,7 @@ class ContractProvider with ChangeNotifier {
 
   Future<bool> createContract(Map<String, dynamic> contractData) async {
     try {
-      final url = Uri.parse('http://127.0.0.1:8000/api/v1/contracts');
+      final url = Uri.parse('http://10.201.42.44:8000/api/v1/contracts');
 
       final response = await http.post(
         url,
@@ -142,7 +142,7 @@ class ContractProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final url = Uri.parse('http://127.0.0.1:8000/api/v1/contracts');
+      final url = Uri.parse('http://10.201.42.44:8000/api/v1/contracts');
 
       final response = await http.post(
         url,

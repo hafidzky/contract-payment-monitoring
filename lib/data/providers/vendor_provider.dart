@@ -33,7 +33,7 @@ class VendorProvider with ChangeNotifier {
 
     // Perhatikan: notifyListeners dihilangkan di sini agar tidak konflik saat render pertama
     try {
-      final url = Uri.parse('http://127.0.0.1:8000/api/v1/vendors');
+      final url = Uri.parse('http://10.201.42.44:8000/api/v1/vendors');
       final response = await http.get(
         url,
         headers: {'Accept': 'application/json'},
@@ -61,7 +61,7 @@ class VendorProvider with ChangeNotifier {
   // MESIN PENAMBAH DATA KE MYSQL
   Future<void> addVendor(Vendor vendor) async {
     try {
-      final url = Uri.parse('http://127.0.0.1:8000/api/v1/vendors');
+      final url = Uri.parse('http://10.201.42.44:8000/api/v1/vendors');
 
       // Kita menembakkan POST request ke Laravel
       final response = await http.post(
@@ -95,7 +95,7 @@ class VendorProvider with ChangeNotifier {
 
   Future<bool> deleteVendor(int id) async {
     try {
-      final url = Uri.parse('http://127.0.0.1:8000/api/v1/vendors/$id');
+      final url = Uri.parse('http://10.201.42.44:8000/api/v1/vendors/$id');
       final response = await http.delete(
         url,
         headers: {'Accept': 'application/json'},
